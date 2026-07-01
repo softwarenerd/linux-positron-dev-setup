@@ -566,25 +566,6 @@ install_vscode() {
   log "Visual Studio Code installed."
 }
 
-# clone_repo: clone this repo into CLONE_DIR so the developer ends up with a
-# working checkout (no manual git clone needed). Idempotent — skips if it's
-# already there. Uses HTTPS so it works before any SSH key is set up.
-clone_repo() {
-  if [ -d "$CLONE_DIR/.git" ]; then
-    log "repo already cloned at $CLONE_DIR; skipping."
-    return 0
-  fi
-  if [ -e "$CLONE_DIR" ]; then
-    log "WARNING: $CLONE_DIR exists but isn't a git checkout; skipping clone."
-    return 0
-  fi
-
-  log "cloning $REPO_URL into $CLONE_DIR ..."
-  git clone "$REPO_URL" "$CLONE_DIR"
-  record "clone $CLONE_DIR"
-  log "cloned. Your checkout is at $CLONE_DIR."
-}
-
 # undo: reverse everything recorded in the manifest, then delete it. Only touches
 # what this script created/installed; leaves pre-existing state untouched. Does
 # not revert apt-get update/upgrade.
@@ -675,13 +656,12 @@ main() {
   maybe_upgrade
   install_deps
   configure_shell
-  configure_git_identity
   install_node
   install_python
   configure_ssh_key
+  configure_git_identity
   clone_positron
   install_vscode
-  # clone_repo  # disabled for now — deciding whether we need to clone this repo
 }
 
 case "${1:-}" in
