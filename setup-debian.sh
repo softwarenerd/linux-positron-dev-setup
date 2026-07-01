@@ -26,6 +26,10 @@ export DEBIAN_FRONTEND=noninteractive
 REPO_URL="${SETUP_REPO_URL:-https://github.com/softwarenerd/linux-positron-dev-setup.git}"
 CLONE_DIR="${SETUP_CLONE_DIR:-$HOME/linux-positron-dev-setup}"
 
+# Where to clone Positron from. Cloned over SSH (into a developer-chosen folder
+# under ~/), so it relies on configure_ssh_key having registered a key first.
+POSITRON_URL="${SETUP_POSITRON_URL:-git@github.com:posit-dev/positron.git}"
+
 # Package dependencies installed via apt. Maintain this list as Positron's build
 # requirements change — one package per line for easy diffs.
 PACKAGES=(
@@ -116,16 +120,17 @@ record() {
   printf '%s\n' "$1" >>"$MANIFEST"
 }
 
-# confirm <prompt>: ask a yes/no question, defaulting to No. Reads from the
-# terminal (/dev/tty) rather than stdin, so the prompt still works when the
-# script is piped in via `curl ... | bash` (where stdin is the script itself).
+# confirm <prompt>: ask a yes/no question, defaulting to Yes so the developer can
+# hit ENTER to proceed through the steps. Reads from the terminal (/dev/tty)
+# rather than stdin, so the prompt still works when the script is piped in via
+# `curl ... | bash` (where stdin is the script itself).
 confirm() {
   local prompt="$1" reply=""
-  printf '%s%s [y/N] %s' "$ACCENT" "$prompt" "$RESET" >&2
+  printf '%s%s [Y/n] %s' "$ACCENT" "$prompt" "$RESET" >&2
   read -r reply </dev/tty 2>/dev/null || reply=""
   case "$reply" in
-    [Yy] | [Yy][Ee][Ss]) return 0 ;;
-    *) return 1 ;;
+    [Nn] | [Nn][Oo]) return 1 ;;
+    *) return 0 ;;
   esac
 }
 
@@ -151,10 +156,11 @@ apt_update() {
   sudo apt-get update
 }
 
-# maybe_upgrade: offer to upgrade installed packages. Defaults to No so that,
-# by default, the box stays at the exact package versions of the chosen ISO
-# (useful for reproducing release-specific bugs). This stays WITHIN the current
-# release — it does not change the Ubuntu/Debian (LTS) version.
+# maybe_upgrade: offer to upgrade installed packages. Like every prompt this
+# defaults to Yes (hit ENTER to proceed); answer No to keep the box at the exact
+# package versions of the chosen ISO (useful for reproducing release-specific
+# bugs). This stays WITHIN the current release — it does not change the
+# Ubuntu/Debian (LTS) version.
 maybe_upgrade() {
   banner "Upgrade Packages"
   if confirm "Upgrade installed packages to the latest within the current release?"; then
@@ -473,6 +479,41 @@ configure_ssh_key() {
   done
 }
 
+# clone_positron: clone Positron over SSH into a developer-chosen folder under
+# ~/ (e.g. "Work" or "Code"), creating that folder if needed. Runs after
+# configure_ssh_key so the SSH clone can authenticate. Idempotent — skips if the
+# checkout is already there.
+clone_positron() {
+  banner "Clone Positron"
+
+  local folder parent dest
+  ask "Which folder under ~/ should Positron go in? (e.g. Work, Code)" folder
+  parent="$HOME/$folder"
+  dest="$parent/positron"
+
+  if [ -d "$dest/.git" ]; then
+    log "Positron already cloned at $dest; skipping."
+    return 0
+  fi
+  if [ -e "$dest" ]; then
+    log "WARNING: $dest exists but isn't a git checkout; skipping clone."
+    return 0
+  fi
+
+  # Create the parent folder only if it's missing, and record it for --undo only
+  # when we actually created it (so undo never removes a folder that pre-existed).
+  if [ ! -d "$parent" ]; then
+    log "creating $parent ..."
+    mkdir -p "$parent"
+    record "mkdir $parent"
+  fi
+
+  log "cloning $POSITRON_URL into $dest ..."
+  git clone "$POSITRON_URL" "$dest"
+  record "clone $dest"
+  log "cloned. Your Positron checkout is at $dest."
+}
+
 # clone_repo: clone this repo into CLONE_DIR so the developer ends up with a
 # working checkout (no manual git clone needed). Idempotent — skips if it's
 # already there. Uses HTTPS so it works before any SSH key is set up.
@@ -502,10 +543,11 @@ undo() {
     return 0
   fi
 
-  local line dir ver file old_shell pkgs=()
+  local line dir ver file old_shell pkgs=() dirs=()
   while IFS= read -r line; do
     case "$line" in
       "pkg "*) pkgs+=("${line#pkg }") ;;
+      "mkdir "*) dirs+=("${line#mkdir }") ;;
       "git-name")
         log "unsetting git user.name ..."
         git config --global --unset user.name || true
@@ -560,6 +602,14 @@ undo() {
     sudo apt-get autoremove -y
   fi
 
+  # Remove folders we created, last, so any checkouts inside them (removed above)
+  # are already gone. rmdir only deletes empty dirs, so a folder the developer
+  # later put other work in is left untouched.
+  for dir in "${dirs[@]:-}"; do
+    [ -n "$dir" ] || continue
+    rmdir "$dir" 2>/dev/null && log "removed $dir" || true
+  done
+
   rm -f "$MANIFEST"
   rmdir "$STATE_DIR" 2>/dev/null || true
   log "undo complete."
@@ -577,6 +627,7 @@ main() {
   install_node
   install_python
   configure_ssh_key
+  clone_positron
   # clone_repo  # disabled for now — deciding whether we need to clone this repo
 }
 
