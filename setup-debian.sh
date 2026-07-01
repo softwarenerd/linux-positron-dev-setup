@@ -146,6 +146,25 @@ ask() {
   printf -v "$__var" '%s' "$reply"
 }
 
+# ask_default <prompt> <varname> <default>: like ask(), but shows <default> in
+# brackets and accepts it when the developer just hits ENTER. If <default> is
+# empty this behaves like ask() (re-asks until non-empty), so it works both for
+# confirming an existing value and for filling in a missing one.
+ask_default() {
+  local prompt="$1" __var="$2" default="$3" reply=""
+  while :; do
+    if [ -n "$default" ]; then
+      printf '%s%s [%s]: %s' "$ACCENT" "$prompt" "$default" "$RESET" >&2
+    else
+      printf '%s%s: %s' "$ACCENT" "$prompt" "$RESET" >&2
+    fi
+    read -r reply </dev/tty 2>/dev/null || reply=""
+    [ -z "$reply" ] && reply="$default"
+    [ -n "$reply" ] && break
+  done
+  printf -v "$__var" '%s' "$reply"
+}
+
 # --- steps ------------------------------------------------------------------
 
 # apt_update: refresh the package index so installs resolve to the versions
@@ -198,33 +217,29 @@ install_deps() {
   log "package dependencies installed."
 }
 
-# configure_git_identity: ensure git knows who's authoring commits. Idempotent —
-# if both name and email are already set globally, leaves them alone. Otherwise
-# prompts for whatever's missing. This is the one place we ask the developer for
-# personal info.
+# configure_git_identity: ensure git knows who's authoring commits. Always walks
+# the developer through both fields, pre-filling any value that's already set so
+# ENTER keeps it. This is the one place we ask the developer for personal info.
 configure_git_identity() {
-  local name email
-  name="$(git config --global user.name || true)"
-  email="$(git config --global user.email || true)"
+  local cur_name cur_email name email
+  cur_name="$(git config --global user.name || true)"
+  cur_email="$(git config --global user.email || true)"
 
-  if [ -n "$name" ] && [ -n "$email" ]; then
-    log "git identity already set ($name <$email>); skipping."
-    return 0
-  fi
-
-  banner "Setup Git"
+  banner "Setup Git Identity"
   log "setting your git identity (used to author your commits)..."
-  # Only set (and record for undo) the fields that were missing, so we never
-  # clobber or later unset an identity the developer already had.
-  if [ -z "$name" ]; then
-    ask "Your Git user.name" name
+
+  # Prompt for both, showing any existing value as the default. Only set (and
+  # record for undo) fields that actually change, so we never unset or clobber an
+  # identity the developer already had, and re-running is a no-op.
+  ask_default "Your Git user.name" name "$cur_name"
+  if [ "$name" != "$cur_name" ]; then
     git config --global user.name "$name"
-    record "git-name"
+    [ -z "$cur_name" ] && record "git-name"
   fi
-  if [ -z "$email" ]; then
-    ask "Your Git user.email" email
+  ask_default "Your Git user.email" email "$cur_email"
+  if [ "$email" != "$cur_email" ]; then
     git config --global user.email "$email"
-    record "git-email"
+    [ -z "$cur_email" ] && record "git-email"
   fi
   log "git identity set to $name <$email>."
 }
