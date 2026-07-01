@@ -3,7 +3,8 @@
 # setup.sh — Top-level dispatcher for Positron dev-machine setup.
 #
 # Detects the Linux distro family and invokes the matching setup-<family>.sh.
-# Currently supports the Debian family (Debian, Ubuntu, Mint, Pop!_OS, ...).
+# Currently supports the Debian family (Debian, Ubuntu, Mint, Pop!_OS, ...) and
+# the Fedora/RHEL family (Fedora, RHEL, Rocky, Alma, CentOS Stream, ...).
 # Any arguments are forwarded to the family script.
 #
 set -euo pipefail
@@ -61,15 +62,18 @@ log() {
   printf '[setup] %s\n' "$*" >&2
 }
 
-# detect_family: echo the distro family ("debian", ...) from /etc/os-release,
-# or empty if it can't be determined.
+# detect_family: echo the distro family ("debian", "fedora", ...) from
+# /etc/os-release, or empty if it can't be determined.
 detect_family() {
   [ -r /etc/os-release ] || return 0
   # shellcheck disable=SC1091
   . /etc/os-release
-  # ID is the specific distro; ID_LIKE lists related families.
+  # ID is the specific distro; ID_LIKE lists related families. Fedora itself has
+  # no ID_LIKE (ID=fedora), while RHEL derivatives (Rocky, Alma, CentOS Stream)
+  # carry "fedora" and/or "rhel" in ID_LIKE.
   case " ${ID:-} ${ID_LIKE:-} " in
     *" debian "* | *" ubuntu "*) echo "debian" ;;
+    *" fedora "* | *" rhel "*) echo "fedora" ;;
   esac
 }
 
@@ -80,6 +84,9 @@ main() {
   case "$family" in
     debian)
       run_family debian "$@"
+      ;;
+    fedora)
+      run_family fedora "$@"
       ;;
     "")
       die "could not determine Linux distro (missing or unrecognized /etc/os-release)."
