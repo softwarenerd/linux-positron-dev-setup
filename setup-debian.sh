@@ -526,8 +526,11 @@ install_vscode() {
     return 0
   fi
 
-  if have code; then
-    log "Visual Studio Code already installed (code on PATH); skipping."
+  # Check the dpkg package, not `code` on PATH: in a VS Code remote/SSH session
+  # the server ships its own `code` CLI shim, so `have code` gives a false
+  # positive even when the .deb isn't installed.
+  if pkg_installed code; then
+    log "Visual Studio Code already installed (code package present); skipping."
     return 0
   fi
 
