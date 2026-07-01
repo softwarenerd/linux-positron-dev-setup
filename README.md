@@ -10,14 +10,17 @@ That's fine: these scripts *install* git, so bootstrap them with `curl` (present
 essentially every Debian/Ubuntu base image) instead:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/softwarenerd/linux-positron-dev-setup/main/setup.sh | bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/softwarenerd/linux-positron-dev-setup/main/setup.sh)"
 ```
 
 No `curl`? Use `wget`:
 
 ```sh
-wget -qO- https://raw.githubusercontent.com/softwarenerd/linux-positron-dev-setup/main/setup.sh | bash
+bash -c "$(wget -qO- https://raw.githubusercontent.com/softwarenerd/linux-positron-dev-setup/main/setup.sh)"
 ```
+
+This downloads the script in full before running it, so a dropped connection
+can't leave you executing a half-downloaded script.
 
 That single command does everything: it detects the distro, installs git, and
 clones this repo for you — so you never have to `git clone` by hand. The only

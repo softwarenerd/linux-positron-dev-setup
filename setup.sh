@@ -9,7 +9,10 @@
 set -euo pipefail
 
 # Directory this script lives in, so sibling scripts resolve regardless of cwd.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# When piped straight into bash (`curl ... | bash`) there is no file on disk, so
+# BASH_SOURCE is unset; fall back to "." (the cwd) in that case rather than
+# tripping `set -u`. run_family then finds no sibling and downloads it instead.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-.}")" && pwd)"
 
 # Base URL for fetching sibling scripts when this dispatcher is piped straight
 # into bash (e.g. `curl ... | bash`) on a fresh box that has no git yet. In that
