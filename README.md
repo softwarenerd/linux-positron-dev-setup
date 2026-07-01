@@ -3,40 +3,45 @@
 Scripts to configure a fresh Linux machine for [Positron](https://positron.posit.co)
 development. Currently supports the Debian family (Debian, Ubuntu, Mint, Pop!_OS, …).
 
-## Quick start (fresh box, no git yet)
+## Quick start (fresh box)
 
-On a brand-new VM you have a terminal and not much else — in particular, no git.
-That's fine: these scripts *install* git, so bootstrap them with `curl` (present on
-essentially every Debian/Ubuntu base image) instead:
-
-```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/softwarenerd/linux-positron-dev-setup/main/setup.sh)"
-```
-
-No `curl`? Use `wget`:
+For `wget` run:
 
 ```sh
 bash -c "$(wget -qO- https://raw.githubusercontent.com/softwarenerd/linux-positron-dev-setup/main/setup.sh)"
 ```
 
+For `curl` run:
+
+```sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/softwarenerd/linux-positron-dev-setup/main/setup.sh)"
+```
+
 This downloads the script in full before running it, so a dropped connection
 can't leave you executing a half-downloaded script.
 
-That single command does everything: it detects the distro, installs git, and
-clones this repo for you — so you never have to `git clone` by hand. The only
-things it asks you are personal (your name and email, for git). The scripts are
-idempotent, so re-running is safe.
+That single command detects your distro and installs everything you need for Positron
+development on Linux. The only things it asks you are personal (your name and email,
+for git). The scripts are idempotent, so re-running is safe.
 
 ## What it does
 
 - Refreshes the apt package index.
-- Optionally upgrades installed packages within the current release (defaults to
-  No, to keep the box at the chosen ISO's versions).
-- Installs git if it isn't already present.
-- Configures your git identity, prompting for your name and email (skipped if
-  already set).
-- Clones this repo to `~/linux-positron-dev-setup` so you have a working
-  checkout (skipped if it's already there).
+- Optionally upgrades installed packages within the current release (keeping the
+  box on the same Debian/Ubuntu version).
+- Installs all package dependencies.
+- Optionally switches your login shell to Zsh (the default shell on macOS).
+- Installs Node.js via [fnm](https://github.com/Schniz/fnm) and sets it as the
+  default.
+- Installs Python via [pyenv](https://github.com/pyenv/pyenv) and sets it as the
+  global version.
+- Generates an ed25519 SSH key (if you don't already have one), shows it, copies
+  it to your clipboard, and points you at GitHub to register it.
+- Configures your git identity, prompting for your name and email (pre-filling
+  anything that's already set).
+- Clones Positron over SSH into a folder you choose under `~/` (skipped if it's
+  already there).
+- Optionally installs Visual Studio Code.
 
 ## Configuration
 
