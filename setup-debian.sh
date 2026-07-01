@@ -514,6 +514,55 @@ clone_positron() {
   log "cloned. Your Positron checkout is at $dest."
 }
 
+# install_vscode: optionally download and install the latest stable VS Code for
+# arm64 from Microsoft. Downloads the .deb into ~/Downloads, then installs it with
+# apt-get (which resolves any dependencies). Idempotent — skips if `code` is
+# already installed. Recorded for --undo only when we newly install it.
+install_vscode() {
+  banner "Install Visual Studio Code"
+
+  if ! confirm "Install Visual Studio Code?"; then
+    log "skipping Visual Studio Code install."
+    return 0
+  fi
+
+  if have code; then
+    log "Visual Studio Code already installed (code on PATH); skipping."
+    return 0
+  fi
+
+  # curl fetches the .deb over HTTPS; make sure it's present (record only if we
+  # newly add it, for --undo).
+  if ! pkg_installed curl; then
+    log "installing curl..."
+    sudo apt-get install -y curl
+    record "pkg curl"
+  fi
+
+  # Download the latest stable arm64 build into ~/Downloads. The URL redirects to
+  # a versioned .deb (e.g. code_1.126.0-..._arm64.deb); -L follows the redirect
+  # and -OJ saves it under the server-provided filename.
+  local dl="$HOME/Downloads"
+  mkdir -p "$dl"
+  log "downloading the latest VS Code (arm64) into $dl ..."
+  ( cd "$dl" && curl -fSL -OJ "https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-arm64" )
+
+  # Pick the VS Code .deb to install. Normally there's exactly one, but if older
+  # downloads linger, sort -V takes the highest version. The directory prefix is
+  # identical across matches, so the sort keys on the version in the filename.
+  local deb
+  deb="$(ls "$dl"/code_*.deb 2>/dev/null | sort -V | tail -n1)"
+  if [ -z "$deb" ]; then
+    log "WARNING: no VS Code .deb found in $dl after download; skipping install."
+    return 0
+  fi
+
+  log "installing $(basename "$deb") ..."
+  sudo apt-get install -y "$deb"
+  record "pkg code"
+  log "Visual Studio Code installed."
+}
+
 # clone_repo: clone this repo into CLONE_DIR so the developer ends up with a
 # working checkout (no manual git clone needed). Idempotent — skips if it's
 # already there. Uses HTTPS so it works before any SSH key is set up.
@@ -628,6 +677,7 @@ main() {
   install_python
   configure_ssh_key
   clone_positron
+  install_vscode
   # clone_repo  # disabled for now — deciding whether we need to clone this repo
 }
 
