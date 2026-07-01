@@ -353,6 +353,18 @@ install_node() {
   export PATH="$fnm_dir:$PATH"
   export FNM_DIR="$fnm_dir"
 
+  # Wire fnm into future interactive shells now, before the (network-dependent)
+  # version install below. Under `set -e` a failed `fnm install` would abort the
+  # script, and if the wiring came afterward we'd leave the binary on disk but
+  # off PATH — fnm unusable in new shells. The `[ -d "$FNM_DIR" ]` guard mirrors
+  # fnm's own installer so the block is a no-op if the dir is ever removed.
+  add_shell_init fnm \
+    'export FNM_DIR="$HOME/.fnm"' \
+    'if [ -d "$FNM_DIR" ]; then' \
+    '  export PATH="$FNM_DIR:$PATH"' \
+    "  eval \"\$(fnm env --use-on-cd --shell $LOGIN_SHELL)\"" \
+    'fi'
+
   # Install the pinned Node version (idempotent).
   if fnm list 2>/dev/null | grep -q "v$NODE_VERSION"; then
     log "Node.js $NODE_VERSION already installed via fnm; skipping."
@@ -363,12 +375,6 @@ install_node() {
   fi
   fnm default "$NODE_VERSION"
   log "fnm default Node.js set to $NODE_VERSION."
-
-  # Wire fnm into future interactive shells.
-  add_shell_init fnm \
-    'export FNM_DIR="$HOME/.fnm"' \
-    'export PATH="$HOME/.fnm:$PATH"' \
-    "eval \"\$(fnm env --use-on-cd --shell $LOGIN_SHELL)\""
 }
 
 # install_python: install pyenv and build the pinned CPython ($PYTHON_VERSION),
