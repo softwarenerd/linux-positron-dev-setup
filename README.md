@@ -1,9 +1,14 @@
 # linux-positron-dev-setup
 
 Scripts to configure a fresh Linux machine for [Positron](https://positron.posit.co)
-development. Currently supports the Debian family (Debian, Ubuntu, Mint, Pop!_OS, …).
+development.
 
-## Quick start (fresh box)
+Supports the Debian family (Debian, Ubuntu, Mint, Pop!_OS, …)
+and the Fedora family (Fedora, RHEL, CentOS Stream, Rocky, AlmaLinux, …).
+
+## Quick start
+
+Run the setup script using `wget` or `curl`.
 
 For `wget` run:
 
@@ -17,8 +22,8 @@ For `curl` run:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/softwarenerd/linux-positron-dev-setup/main/setup.sh)"
 ```
 
-This downloads the script in full before running it, so a dropped connection
-can't leave you executing a half-downloaded script.
+This downloads each script in full before running it, so a dropped connection can't
+leave you executing a half-downloaded script.
 
 That single command detects your distro and installs everything you need for Positron
 development on Linux. The only things it asks you are personal (your name and email,
@@ -36,7 +41,8 @@ for git). The scripts are idempotent, so re-running is safe.
 - Installs Python via [pyenv](https://github.com/pyenv/pyenv) and sets it as the
   global version.
 - Generates an ed25519 SSH key (if you don't already have one), shows it, copies
-  it to your clipboard, and points you at GitHub to register it.
+  it to your clipboard (if a clipboard tool is available), and points you at
+  GitHub to register it.
 - Configures your git identity, prompting for your name and email (pre-filling
   anything that's already set).
 - Clones Positron over SSH into a folder you choose under `~/` (skipped if it's
