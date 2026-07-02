@@ -581,6 +581,34 @@ install_vscode() {
   log "Visual Studio Code installed."
 }
 
+# install_ssh_server: optionally install and enable the OpenSSH server so the
+# machine accepts incoming SSH connections (e.g. for VS Code Remote - SSH).
+# Idempotent — the apt-get install is a no-op if openssh-server is already
+# present, and `systemctl enable --now` is safe to re-run. Recorded for --undo
+# only when we newly install the package.
+install_ssh_server() {
+  banner "Enable SSH server"
+
+  if ! confirm "Install and enable the OpenSSH server?"; then
+    log "skipping OpenSSH server setup."
+    return 0
+  fi
+
+  if ! pkg_installed openssh-server; then
+    log "installing openssh-server..."
+    sudo apt-get install -y openssh-server
+    record "pkg openssh-server"
+  else
+    log "openssh-server already installed."
+  fi
+
+  # Enable the service and start it now. On Debian/Ubuntu the unit is named ssh.
+  log "enabling and starting the ssh service..."
+  sudo systemctl enable --now ssh
+  record "service ssh"
+  log "OpenSSH server is enabled and running."
+}
+
 # undo: reverse everything recorded in the manifest, then delete it. Only touches
 # what this script created/installed; leaves pre-existing state untouched. Does
 # not revert apt-get update/upgrade.
@@ -591,11 +619,16 @@ undo() {
     return 0
   fi
 
-  local line dir ver file old_shell pkgs=() dirs=()
+  local line dir ver file old_shell svc pkgs=() dirs=()
   while IFS= read -r line; do
     case "$line" in
       "pkg "*) pkgs+=("${line#pkg }") ;;
       "mkdir "*) dirs+=("${line#mkdir }") ;;
+      "service "*)
+        svc="${line#service }"
+        log "disabling and stopping the $svc service ..."
+        sudo systemctl disable --now "$svc" 2>/dev/null || true
+        ;;
       "git-name")
         log "unsetting git user.name ..."
         git config --global --unset user.name || true
@@ -677,6 +710,7 @@ main() {
   configure_git_identity
   clone_positron
   install_vscode
+  install_ssh_server
 }
 
 case "${1:-}" in
