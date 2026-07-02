@@ -333,6 +333,45 @@ configure_shell() {
   fi
 
   set_shell_vars "$zsh_path"
+
+  # zsh is now present (we installed it or it was already there), so offer
+  # oh-my-zsh on top of it.
+  install_oh_my_zsh
+}
+
+# install_oh_my_zsh: optionally install the oh-my-zsh framework on top of zsh.
+# Only reached from configure_shell's zsh path, so zsh is guaranteed present.
+# Idempotent — skips if ~/.oh-my-zsh already exists. Runs the official installer
+# unattended so it doesn't try to chsh (we already did) or exec a login zsh
+# (which would hijack this script). The installer creates ~/.zshrc from its
+# template, backing up any existing one to ~/.zshrc.pre-oh-my-zsh; because this
+# runs before the tool-init steps, their shell init is appended afterwards.
+# Recorded for --undo, which removes ~/.oh-my-zsh and restores the backup.
+install_oh_my_zsh() {
+  if [ -d "$HOME/.oh-my-zsh" ]; then
+    log "oh-my-zsh already installed ($HOME/.oh-my-zsh); skipping."
+    return 0
+  fi
+
+  if ! confirm "Install oh-my-zsh?"; then
+    log "skipping oh-my-zsh install."
+    return 0
+  fi
+
+  # The installer fetches over HTTPS; make sure curl is present (record only if
+  # we newly add it, for --undo).
+  if ! pkg_installed curl; then
+    log "installing curl..."
+    sudo dnf install -y curl
+    record "pkg curl"
+  fi
+
+  log "installing oh-my-zsh ..."
+  # --unattended sets CHSH=no and RUNZSH=no: don't change the login shell (we
+  # already did) and don't drop into a new zsh at the end.
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+  record "omz"
+  log "oh-my-zsh installed."
 }
 
 # install_node: install fnm (Fast Node Manager) and the pinned Node.js
@@ -611,6 +650,22 @@ install_ssh_server() {
   log "OpenSSH server is enabled and running."
 }
 
+# configure_zsh_prompt: if zsh is the login shell and oh-my-zsh is installed,
+# append a custom PROMPT as the final shell-init block of ~/.zshrc. Runs last in
+# main() so it lands after every other block (pyenv, fnm, and oh-my-zsh's own
+# config), letting it win as the effective prompt. The prompt uses oh-my-zsh
+# helpers ($fg, git_prompt_info), so we only add it when oh-my-zsh is present;
+# otherwise the developer manages their own prompt. Idempotent and undo-aware via
+# add_shell_init.
+configure_zsh_prompt() {
+  [ "$LOGIN_SHELL" = zsh ] || return 0
+  [ -d "$HOME/.oh-my-zsh" ] || return 0
+  banner "Configure Zsh Prompt"
+  add_shell_init "zsh-prompt" \
+    'PROMPT='\''[%m]%{$fg_bold[green]%}%p %{$fg[cyan]%}[%~]%{$reset_color%} $(git_prompt_info)%{$fg_bold[blue]%}% %{$reset_color%}'\'''
+  log "custom zsh prompt written to $SHELL_RC."
+}
+
 # undo: reverse everything recorded in the manifest, then delete it. Only touches
 # what this script created/installed; leaves pre-existing state untouched. Does
 # not revert dnf makecache/upgrade.
@@ -630,6 +685,14 @@ undo() {
         svc="${line#service }"
         log "disabling and stopping the $svc service ..."
         sudo systemctl disable --now "$svc" 2>/dev/null || true
+        ;;
+      "omz")
+        log "removing oh-my-zsh ..."
+        rm -rf "$HOME/.oh-my-zsh"
+        if [ -f "$HOME/.zshrc.pre-oh-my-zsh" ]; then
+          log "restoring pre-oh-my-zsh ~/.zshrc ..."
+          mv -f "$HOME/.zshrc.pre-oh-my-zsh" "$HOME/.zshrc"
+        fi
         ;;
       "git-name")
         log "unsetting git user.name ..."
@@ -713,6 +776,7 @@ main() {
   clone_positron
   install_vscode
   install_ssh_server
+  configure_zsh_prompt
 }
 
 case "${1:-}" in
